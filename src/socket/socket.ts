@@ -2,6 +2,8 @@ import { Server } from "socket.io";
 import { createServer } from "http";
 import jwt from "jsonwebtoken";
 import { prisma } from "../app";
+import helmet from "helmet";
+import { timeStamp } from "console";
 
 const room: Record<string, string[]> = {};
 
@@ -12,6 +14,8 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+
+io.engine.use(helmet());
 
 // Authentication middleware
 io.use(async (socket, next) => {
@@ -43,33 +47,153 @@ io.use(async (socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
-  console.log(socket.id, "A user connected");
-  socket.emit("User connected", socket.id);
+io.on("connection", async (socket) => {
+  const userId = socket.data.user.id;
 
-  let roomId = socket.handshake.query.room;
-  console.log(roomId);
-  console.log(room);
+  try {
+    const group = await prisma.group.findMany({
+      where: {
+        createdById: userId,
+      },
+    });
 
-  // Ensure the roomId is a single string
-  if (Array.isArray(roomId)) {
-    roomId = roomId[0];
+    group.forEach((group) => {
+      socket.join(`group:${group.id}`);
+      console.log(socket.id, "joined group", group.id);
+    });
+  } catch (error) {
+    console.error(error);
   }
-  if (typeof roomId === "string") {
-    // Check that the room exists
-    if (!room[roomId]) {
-      room[roomId] = [];
-      room[roomId].push(socket.id);
-      socket.join(roomId);
-      console.log(socket.id, "Joined room", roomId);
-    } else {
-      console.log(socket.id, "User already in room", roomId);
+
+  socket.on("join group", async (data) => {
+    try {
+      const { groupId } = data;
+
+      const group = await prisma.group.findUnique({
+        where: {
+          id: groupId,
+        },
+      });
+
+      if (!group) {
+        return console.error("Invalid group");
+      }
+
+      //   Check if the user is already a member of the group
+      const groupMember = await prisma.groupMember.findFirst({
+        where: {
+          groupId: groupId,
+          userId: userId,
+        },
+      });
+
+      if (groupMember) {
+        socket.emit("error", {
+          message: "'You are already a member of this group'",
+        });
+      }
+
+      await prisma.groupMember.create({
+        data: {
+          groupId: groupId,
+          userId: userId,
+        },
+      });
+
+      socket.join(`group:${groupId}`);
+
+      //   Notify to all the members of the group that the user has joined
+      io.to(`group:${group.id}`).emit("user_joined_group", {
+        userId: userId,
+        groupId: groupId,
+        timeStamp: new Date().toLocaleString(),
+      });
+
+      socket.emit("joined_group", { groupId });
+    } catch (error) {
+      console.error(error);
+      socket.emit("error", { message: "Failed to join group" });
     }
-  }
+  });
 
-  socket.on("message", (message) => {
-    console.log(socket.id, "User sent message", message);
-    socket.broadcast.emit("message", message);
+  socket.on("leave group", async (data) => {
+    const { groupId } = data;
+    try {
+      const group = await prisma.groupMember.findUnique({
+        where: {
+          userId_groupId: {
+            groupId: groupId,
+            userId: userId,
+          },
+        },
+      });
+
+      if (!group) {
+        socket.emit("error", { message: "Not a member of this group" });
+        return console.error("Invalid group");
+      }
+
+      await prisma.groupMember.delete({
+        where: {
+          userId_groupId: {
+            groupId: groupId,
+            userId: userId,
+          },
+        },
+      });
+
+      socket.leave(`group:${groupId}`);
+      io.to(`group:${groupId}`).emit("user_left_group", {
+        userId: userId,
+        groupId: groupId,
+        timeStamp: new Date().toLocaleString(),
+      });
+
+      socket.emit("left_group", { groupId });
+    } catch (error) {
+      console.log(error);
+      socket.emit("error", { message: "Failed to leave group" });
+    }
+  });
+
+  socket.on("group_message", async (data) => {
+    const { groupId, message } = data;
+    try {
+      const isUserInGroup = await prisma.groupMember.findUnique({
+        where: {
+          userId_groupId: {
+            groupId: groupId,
+            userId: userId,
+          },
+        },
+      });
+
+      if (!isUserInGroup) {
+        socket.emit("error", {
+          message: "You are not a member of this group",
+        });
+        return console.error("Invalid group");
+      }
+
+      await prisma.groupMessage.create({
+        data: {
+          content: message,
+          senderId: userId,
+          groupId: groupId,
+        },
+      });
+
+      io.to(`group:${groupId}`).emit("new_group_message", {
+        id: message.id,
+        senderId: userId,
+        groupId: groupId,
+        content: message.content,
+        createdAt: new Date(),
+      });
+    } catch (error) {
+      console.log(error);
+      socket.emit("error", { message: "Failed to send message" });
+    }
   });
 
   socket.on("is typing", (data) => {
