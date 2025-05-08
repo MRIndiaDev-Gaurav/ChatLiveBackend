@@ -11,6 +11,7 @@ import userRouter from "./routes/users-chat";
 import groupRouter from "./routes/groups";
 import adminRouter from "./routes/admin";
 import docsRouter from "./docs";
+import { errorHandler } from "./middleware/error.middleware";
 dotenv.config();
 const app = express();
 export const prisma = new PrismaClient();
@@ -28,6 +29,7 @@ app.use(
     max: 100, // limit each IP to 100 requests per windowMs
   })
 );
+app.use(errorHandler);
 
 // Create a logger
 const logger = createLogger({

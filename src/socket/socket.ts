@@ -196,6 +196,38 @@ io.on("connection", async (socket) => {
     }
   });
 
+  socket.on("direct_message", async (data) => {
+    const { message, recipientId } = data;
+    try {
+      const newMessage = await prisma.directMessage.create({
+        data: {
+          content: message,
+          senderId: userId,
+          recipientId: recipientId,
+        },
+      });
+
+      //   Emit to the recipient if they are online
+      const recipientSocket = getSocketByUserId(recipientId);
+      if (recipientSocket) {
+        io.to(recipientSocket.id).emit("new_direct_message", {
+          id: newMessage.id,
+          senderId: userId,
+          content: message,
+          createdAt: newMessage.createdAt,
+        });
+      }
+
+      socket.emit("message_sent", {
+        id: newMessage.id,
+        recipientId,
+        createdAt: newMessage.createdAt,
+      });
+    } catch (error) {
+      socket.emit("error", { message: "Failed to send message" });
+    }
+  });
+
   socket.on("is typing", (data) => {
     console.log(socket.id, "User is typing", data);
     socket.broadcast.emit("typing", data);
@@ -206,6 +238,15 @@ io.on("connection", async (socket) => {
     socket.broadcast.emit("user disconnected", socket.id);
   });
 });
+
+function getSocketByUserId(userId: string) {
+  for (let [id, socket] of io.sockets.sockets.entries()) {
+    if (socket.data.user.id === userId) {
+      return socket;
+    }
+  }
+  return undefined;
+}
 
 server.listen(8080, () => {
   console.log("Socket is also running I am complied");

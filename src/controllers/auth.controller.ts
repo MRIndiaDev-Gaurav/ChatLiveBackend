@@ -3,6 +3,8 @@ import { prisma } from "../app";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import verficationEmail from "../services/verficationEmail";
+import { ApiError } from "../middleware/error.middleware";
+import { HttpStatusCode } from "../types/http.enum";
 
 /**
  *
@@ -279,7 +281,11 @@ export const updateUser = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-export const getUser = async (req: Request, res: Response): Promise<any> => {
+export const getUser = async (
+  req: Request,
+  res: Response,
+  next: Function
+): Promise<any> => {
   try {
     const user = await prisma.user.findFirst({
       where: {
@@ -301,6 +307,11 @@ export const getUser = async (req: Request, res: Response): Promise<any> => {
       user,
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error" });
+    new ApiError(
+      "Get User Endpoint",
+      HttpStatusCode.INTERNAL_SERVER,
+      false,
+      "Something went wrong"
+    );
   }
 };
