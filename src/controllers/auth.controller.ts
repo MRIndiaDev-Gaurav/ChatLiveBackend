@@ -234,3 +234,73 @@ export const refreshToken = async (
     userAuthToken,
   });
 };
+
+export const updateUser = async (req: Request, res: Response): Promise<any> => {
+  const { firstName, lastName, country } = req.body;
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        email: (req as any).user.id,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid token" });
+    }
+
+    const fName = firstName ? firstName : user.firstName;
+    const lName = lastName ? lastName : user.lastName;
+    const countryCode = country ? country : user.country;
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        firstName: fName,
+        lastName: lName,
+        country: countryCode,
+      },
+    });
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: {
+        id: updatedUser.id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        country: updatedUser.country,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const getUser = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: (req as any).user.email,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        country: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(200).json({
+      message: "User retrieved successfully",
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+};

@@ -7,7 +7,7 @@ import { createLogger, format, transports } from "winston";
 import http from "http";
 import { PrismaClient } from "@prisma/client";
 import authRouter from "./routes/userAuth";
-import userRouter from "./routes/users";
+import userRouter from "./routes/users-chat";
 import groupRouter from "./routes/groups";
 import adminRouter from "./routes/admin";
 import docsRouter from "./docs";

@@ -1,5 +1,7 @@
 import { Server } from "socket.io";
 import { createServer } from "http";
+import jwt from "jsonwebtoken";
+import { prisma } from "../app";
 
 const room: Record<string, string[]> = {};
 
@@ -9,6 +11,36 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+});
+
+// Authentication middleware
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    return next(new Error("Authentication error"));
+  }
+
+  try {
+    const decoded: any = jwt.verify(
+      token as string,
+      process.env.JWT_SECRET as string
+    );
+
+    const user = await prisma.user.findFirst({
+      where: {
+        email: decoded.email,
+      },
+    });
+
+    if (!user) {
+      return next(new Error("Authentication error"));
+    }
+
+    socket.data.user = user;
+    next();
+  } catch (error) {
+    next(new Error("Authentication error"));
+  }
 });
 
 io.on("connection", (socket) => {

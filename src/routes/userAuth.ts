@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   login,
   refreshToken,
+  updateUser,
   userRegister,
   verifyEmail,
 } from "../controllers/auth.controller";
@@ -19,5 +20,6 @@ router.post("/register", userRegister);
 router.get("/verify:token", verifyEmail);
 router.post("/login", login);
 router.post("/refreshToken", refreshToken);
+router.post("/update", updateUser);
 
 export default router;
