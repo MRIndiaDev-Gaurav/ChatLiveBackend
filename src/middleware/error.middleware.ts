@@ -1,14 +1,21 @@
 import { Request, Response, NextFunction } from "express";
 import { HttpStatusCode } from "../types/http.enum";
+import { validationResult } from "express-validator";
 
-export const errorHandler = async (
+export const validateRequest = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  res.status(500).json({ error: "Internal Server Error" });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(HttpStatusCode.BAD_REQUEST).json({
+      error: "Validation failed",
+      details: errors.array(),
+    });
+  }
+  next();
 };
-
 class BaseError extends Error {
   public readonly name: string;
   public readonly httpCode: HttpStatusCode;

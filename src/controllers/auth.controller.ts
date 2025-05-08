@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken";
 import verficationEmail from "../services/verficationEmail";
 import { ApiError } from "../middleware/error.middleware";
 import { HttpStatusCode } from "../types/http.enum";
+import rateLimit from "express-rate-limit";
+import router from "../docs";
 
 /**
  *
